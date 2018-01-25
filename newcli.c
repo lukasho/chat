@@ -2,10 +2,6 @@
 
 int sock; //global variable: socket for server
 
-
-
-
-
 int send_name(char* name){
 	int version = VERSION;
 	int type = NAME;
@@ -15,7 +11,6 @@ int send_name(char* name){
 	strcpy(message, name);
 	message[strlen(name) - 1] = '\0';
 	
-	printf("Chose %s\n", message);
 	len = strlen(message);
 
 	send(sock, &version, sizeof(int), 0);
@@ -36,7 +31,7 @@ int send_message(char* input){
 	char* message = malloc(strlen(input));
 	strcpy(message, input);
 	message[strlen(input) - 1] = '\0';
-	printf("Sending %s\n", message);
+	
 	len = strlen(message) + 1;
 
 	send(sock, &version, sizeof(int), 0);
@@ -50,6 +45,25 @@ int send_message(char* input){
 	return 0;
 }
 
+void* Receiver(){
+	char buffer[10000];
+	int version, type;
+	size_t rec_size;
+	while(1){
+		
+		recv(sock, &version, sizeof(int), 0);
+		recv(sock, &type, sizeof(int), 0);
+
+		if(type == NAMEMSG){
+			recv(sock, &rec_size, sizeof(size_t), 0);
+			if(recv(sock, buffer, rec_size, 0) > 0)
+				printf(">%s\n", buffer);
+			else
+				failwith("Server closed the connection");
+		}
+	}
+}
+
 void* Input_handler(){
 	char* buffer = NULL;
 	int num_read;
@@ -57,12 +71,8 @@ void* Input_handler(){
 	
 	while(1){
 		num_read = getline(&buffer, &len, stdin);
-		if(num_read > 0){
-			
-			printf("Read %s\n", buffer);
-			send_message(buffer);
-		}
-			
+		if(num_read > 0)
+			send_message(buffer);	
 		else
 			printf("Nothing read??\n");
 	}
@@ -107,25 +117,27 @@ int main(int argc, char** argv){
 
 	if(connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
 		failwith("Error with connect()");
-
-
-
-	
-
 	
 	char* buffer = NULL;
 	int num_read = 0;
 	printf("choose a name: \n");
 	
-	while(len <= 2)
+	while(len <= 2){
+		memset(buffer, 0, len);
 		num_read = getline(&buffer, &len, stdin);
+	}
 
 	send_name(buffer);
 
-	printf("Done\n");
+	pthread_t receive_thread;
+	if(pthread_create(&receive_thread, NULL, Receiver, NULL))
+		failwith("Error creating the receive thread!");
+
 	pthread_t input_thread;
 	if(pthread_create(&input_thread, NULL, Input_handler, NULL))
 		failwith("Error creating the input handler thread!");
+
+
 
 
 	while(1);

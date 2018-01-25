@@ -1,7 +1,7 @@
 #include "newserv.h"
 
 static Connection* g_clist;
-
+int version = VERSION;
 
 int sd_close(int sockno){
 	for(Connection* curr = g_clist; curr->next!=NULL; curr = curr->next){
@@ -24,6 +24,7 @@ int add_connection(int sockno){
 	newcon->name = malloc(strlen(name) + 1);
 	strcpy(newcon->name, name);
 	newcon->next = g_clist->next;
+	newcon->inbox = NULL;
 	g_clist->next = newcon;
 	return 1;
 }
@@ -38,31 +39,65 @@ int num_connections(){
 	return ret;
 }
 
-
 int recv_name(Connection* conn){
 	int sd = conn->socket;
 	size_t rec_size;
 
 	recv(sd, &rec_size, sizeof(size_t), 0);
 	char* message = malloc(rec_size);
+	memset(message, 0, rec_size);
+
 	printf("Recieving %zd bytes\n", rec_size);
 	recv(sd, message, rec_size, 0);
+	
 	printf("Got: %s\n", message);
+	
 	free(conn->name);
-	conn->name = message; 
-				
+	conn->name = message;
+	return 0;
+}
+
+int add_message(Connection* conn, char* messageIn){
+	pthread_mutex_lock(&conn->lock);
+	char* message = malloc(strlen(messageIn) + 1);
+	strcpy(message, messageIn);
+	Message* new_message = malloc(sizeof(Message));
+	new_message->next = NULL;
+	new_message->msg = message;
+	Message* curr = conn->inbox;
+	if(!curr)
+		conn->inbox = new_message;
+	else {
+		while(curr->next)
+			curr = curr->next;
+		curr->next = new_message;
+	}
+	pthread_mutex_unlock(&conn->lock);
 	return 0;
 }
 
 int recv_message(Connection* conn){
 	int sd = conn->socket;
 	size_t rec_size;
-
+	char* name = conn->name;
 	recv(sd, &rec_size, sizeof(size_t), 0);
-	char* message = malloc(rec_size);
+
+	char* message = malloc(strlen(name) + 2 + rec_size);
 	printf("Recieving %zd bytes\n", rec_size);
-	recv(sd, message, rec_size, 0);
-	printf("%s: %s\n", conn->name, message);
+	char* curr = message;
+	strcpy(curr, name);
+	curr+=strlen(name);
+	strcpy(curr, ": ");
+	curr+=2;
+	recv(sd, curr, rec_size, 0);
+	printf("%s\n", message);
+
+	Connection* curr_conn = g_clist->next;
+	while(curr_conn){
+		add_message(curr_conn, message);
+		curr_conn = curr_conn -> next;
+	}
+
 				
 	
 	return 0;
@@ -152,6 +187,36 @@ int main(int argc, char** argv){
 
 			int curr_sd = curr_conn->socket;
 			
+
+
+			if(FD_ISSET(curr_sd, &write_fds)){
+
+				pthread_mutex_lock(&curr_conn->lock);
+				if(curr_conn->inbox){
+					
+					Message* msg = curr_conn->inbox;
+					curr_conn->inbox = curr_conn->inbox->next;
+					
+					char* mail = msg->msg;
+					int mlength = strlen(mail) + 1;
+					size_t send_size = strlen(mail) + 1;
+					int type = NAMEMSG;
+
+					send(curr_sd, &version, sizeof(int), 0);
+					send(curr_sd, &type, sizeof(int), 0);
+
+					send(curr_sd, &send_size, sizeof(size_t), 0);
+
+					//int ret = 
+					send(curr_sd, mail, mlength, 0);
+					//printf("sent, ret value %d\n", ret);
+					free(msg->msg);
+					free(msg);
+				}
+				pthread_mutex_unlock(&curr_conn->lock);
+			}
+
+
 			if(FD_ISSET(curr_sd, &fds)){
 				int version, type;
 				
