@@ -131,7 +131,7 @@ int main(int argc, char** argv){
 		failwith("Error with listen()");
 	
 
-	int max_sd = sock;
+	int max_sd;
 	fd_set fds, write_fds;
 	
 	unsigned char buffer[70000];

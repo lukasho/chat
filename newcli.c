@@ -119,12 +119,12 @@ int main(int argc, char** argv){
 		failwith("Error with connect()");
 	
 	char* buffer = NULL;
-	int num_read = 0;
+	
 	printf("choose a name: \n");
 	
 	while(len <= 2){
 		memset(buffer, 0, len);
-		num_read = getline(&buffer, &len, stdin);
+		getline(&buffer, &len, stdin);
 	}
 
 	send_name(buffer);
