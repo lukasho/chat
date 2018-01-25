@@ -14,4 +14,6 @@ Address needs to be the ip address of the machine hostingthe server (127.0.0.1 f
 
 3. Client needs to choose a name first, and then can send messages to the server by simply typing them in.
 
+4. Server will then send the message (and who sent it) to all conected clients.
+
 More features will be added soon.
